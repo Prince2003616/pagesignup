@@ -1,0 +1,22 @@
+{
+    
+    "loginText": "Have an account?",
+    "loginLinkText": "Log in",
+    "titlePlaceholder": "Title",
+    "firstNamePlaceholder": "First Name *",
+    "lastNamePlaceholder": "Last Name *",
+    "emailPlaceholder": "Email *",
+    "confirmEmailPlaceholder": "Confirm Email *",
+    "companyPlaceholder": "Company",
+    "address1Placeholder": "Address 1",
+    "address2Placeholder": "Address 2",
+    "cityPlaceholder": "City",
+    "statePlaceholder": "State",
+    "zipcodePlaceholder": "Zipcode",
+    "countyPlaceholder": "County",
+    "phonePlaceholder": "Phone",
+    "extensionPlaceholder": "Extension",
+    "termsText": "By submitting this form, I agree to",
+    "termsLinkText": "Terms and Conditions",
+    "submitButtonText": "Sign Up"
+  }
