@@ -52,10 +52,15 @@ const VendorContactForm = () => {
     }
   };
 
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    console.log("Submitted Form Data:", formData);
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white shadow-md rounded-md text-black">
       <h1 className="text-2xl font-bold mb-4">Vendor/Company Information</h1>
-      <form className="space-y-8">
+      <form className="space-y-8" onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xl">
           {[
             { label: "Legal Vendor/Company Name *", name: "legalName", type: "text", required: true },
@@ -177,7 +182,13 @@ const VendorContactForm = () => {
           ))}
         </div>
 
-        <button type="submit" className="w-full py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Submit</button>
+        <button
+        type="submit"
+        className="w-full py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+        Submit
+      </button>
+
       </form>
     </div>
   );
