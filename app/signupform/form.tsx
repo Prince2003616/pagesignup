@@ -1,5 +1,11 @@
 "use client";
-import React, { useState, ChangeEvent, FormEvent } from "react";
+import React, { useState, ChangeEvent, FormEvent, useEffect } from "react";
+import { Country, State } from "country-state-city";
+
+interface StateType {
+  name: string;
+  isoCode: string;
+}
 
 // Define interfaces for form data
 interface FormData {
@@ -21,6 +27,8 @@ interface FormData {
   schedulingContact: ContactInfo;
   financeContact: ContactInfo;
   services: string[];
+  otherServiceDetail: string; // Added for "Other" service detail
+  captchaInput: string; // Added for user's CAPTCHA input
 }
 
 interface ContactInfo {
@@ -32,20 +40,28 @@ interface ContactInfo {
   telephone: string;
 }
 
-// Define states and countries (replace with your actual data)
-const states = ["State1", "State2", "State3"];
-const countries = [{ name: "Country1" }, { name: "Country2" }];
-const services = ["Service1", "Service2", "Service3"];
+const services = [
+  "Training",
+  "Curriculum Development",
+  "Books, Curriculum",
+  "Instructional Design",
+  "Voice Talent",
+  "Translation",
+  "Mentoring",
+  "Facilities",
+  "Consulting",
+  "e-Learning Development",
+  "Lab Machine Creation",
+  "Other",
+];
 
-const darkNightAmbrosia = "#2e3440";  //Main highlight Color
-const lightBackgroundColor = "#eceff4"; //Tailwind Gray 100
-const lightTextColor = "#4c566a";  //Tailwind gray 700
-const subtleTextColor = "#616e88";  //Tailwind gray 500
-const inputBorderColor = "#d8dee9";  //Tailwind gray 300
-// const accentColor = "#a3be8c";      //Nord Forest Green
+const darkNightAmbrosia = "#2e3440";
+const lightBackgroundColor = "#eceff4";
+const lightTextColor = "#4c566a";
+const subtleTextColor = "#616e88";
+const inputBorderColor = "#d8dee9";
 
 const VendorForm: React.FC = () => {
-  // State for form data
   const [formData, setFormData] = useState<FormData>({
     legalName: "",
     doingBusinessAs: "",
@@ -86,28 +102,69 @@ const VendorForm: React.FC = () => {
       telephone: "",
     },
     services: [],
+    otherServiceDetail: "", // Initialize the "otherServiceDetail" state
+    captchaInput: "", // Initialize the CAPTCHA input
   });
 
-  // State for errors
+  const [captchaText, setCaptchaText] = useState<string>("");
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-
-  // State for "Same as Principals" checkbox
   const [sameAsPrincipals, setSameAsPrincipals] = useState<boolean>(false);
+  const countries = Country.getAllCountries(); // No setter needed
+  const [states, setStates] = useState<StateType[]>([]);
 
-  // Handle input change
+  // Generate a CAPTCHA text
+  const generateCaptcha = (): string => {
+    const characters =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let result = "";
+    const charactersLength = characters.length;
+    for (let i = 0; i < 6; i++) {
+      // Generate 6-character CAPTCHA
+      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+  };
+
+  // useEffect to generate the captcha on component mount and whenever we need a new one.
+  useEffect(() => {
+    setCaptchaText(generateCaptcha());
+  }, []); // Empty dependency array means it runs only once on mount
+
+  const handleCountryChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    const countryCode = e.target.value;
+    setFormData((prev) => ({ ...prev, country: countryCode, state: "" }));
+
+    if (countryCode) {
+      const countryStates = State.getStatesOfCountry(countryCode);
+      setStates(countryStates as StateType[]); // Type assertion
+    } else {
+      setStates([]);
+    }
+  };
+
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value, type } = e.target;
 
     if (type === "checkbox") {
-      const { checked } = e.target as HTMLInputElement; // Explicit cast
-      setFormData((prev) => ({
-        ...prev,
-        services: checked
-          ? [...prev.services, name]
-          : prev.services.filter((service) => service !== name),
-      }));
+      const { checked } = e.target as HTMLInputElement;
+      if (name === "Other") {
+        // Handle the "Other" checkbox separately
+        setFormData((prev) => {
+          const updatedServices = checked
+            ? [...prev.services, name]
+            : prev.services.filter((service) => service !== name);
+          return { ...prev, services: updatedServices };
+        });
+      } else {
+        setFormData((prev) => ({
+          ...prev,
+          services: checked
+            ? [...prev.services, name]
+            : prev.services.filter((service) => service !== name),
+        }));
+      }
     } else {
       setFormData((prev) => ({
         ...prev,
@@ -116,15 +173,21 @@ const VendorForm: React.FC = () => {
     }
   };
 
-  // Handle nested input change (for principals, scheduling, finance contacts)
   const handleNestedChange = (
     section: keyof FormData,
     field: keyof ContactInfo,
     value: string
   ) => {
     setFormData((prev) => {
-      const updatedSection = typeof prev[section] === 'object' && prev[section] !== null ? { ...prev[section] } : {};
-      if (updatedSection && typeof updatedSection === 'object' && updatedSection !== null) {
+      const updatedSection =
+        typeof prev[section] === "object" && prev[section] !== null
+          ? { ...prev[section] }
+          : {};
+      if (
+        updatedSection &&
+        typeof updatedSection === "object" &&
+        updatedSection !== null
+      ) {
         (updatedSection as ContactInfo)[field] = value;
       }
 
@@ -138,7 +201,6 @@ const VendorForm: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
 
-    // Required fields validation
     const requiredFields = [
       "legalName",
       "address1",
@@ -159,17 +221,15 @@ const VendorForm: React.FC = () => {
       }
     });
 
-    // Validate email format
     if (formData.email) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
         newErrors.email = "Invalid email address";
       }
     }
 
-    // Validate phone number format
     if (formData.telephone) {
       if (!/^\+?[0-9]{7,15}$/.test(formData.telephone)) {
-        newErrors.telephone = "Invalid phone number (e.g., +15551234567)"; //Provide example
+        newErrors.telephone = "Invalid phone number (e.g., +15551234567)";
       }
     }
 
@@ -179,11 +239,10 @@ const VendorForm: React.FC = () => {
       }
     }
 
-    // Validate URL
     if (formData.website) {
       try {
-        new URL(formData.website); //try to create a valid URL object
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        new URL(formData.website);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (_unused) {
         newErrors.website = "Invalid URL";
       }
@@ -210,22 +269,24 @@ const VendorForm: React.FC = () => {
       });
     }
 
+    // CAPTCHA VALIDATION
+    if (formData.captchaInput !== captchaText) {
+      newErrors.captchaInput = "CAPTCHA text is incorrect";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle form submission
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
       try {
-        // Simulate API call (replace with your actual API endpoint)
-        await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate delay
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
         console.log("Form submitted successfully:", formData);
-        alert("Form submitted successfully!"); // Replace with more elegant UI
+        alert("Form submitted successfully!");
 
-        // Reset the form (optional)
         setFormData({
           legalName: "",
           doingBusinessAs: "",
@@ -266,12 +327,16 @@ const VendorForm: React.FC = () => {
             telephone: "",
           },
           services: [],
+          otherServiceDetail: "",
+          captchaInput: "",
         });
+        setCaptchaText(generateCaptcha()); // Generate a new CAPTCHA
         setErrors({});
         setSameAsPrincipals(false);
+        setStates([]);
       } catch (error) {
         console.error("Form submission failed:", error);
-        alert("Form submission failed. Please try again."); // Replace with more elegant UI
+        alert("Form submission failed. Please try again.");
       }
     } else {
       console.log("Form has errors");
@@ -291,12 +356,10 @@ const VendorForm: React.FC = () => {
       </h1>
       <form className="space-y-6" onSubmit={handleSubmit}>
         {/* Company Information Section */}
-        <div
-          className="bg-white rounded-md shadow-sm p-6"
-        >
+        <div className="bg-white rounded-md shadow-sm p-6">
           <h2
             className="text-xl font-semibold border-b pb-2 mb-4"
-            style={{ borderColor: darkNightAmbrosia, color:lightTextColor }}
+            style={{ borderColor: darkNightAmbrosia, color: lightTextColor }}
           >
             Company Details
           </h2>
@@ -358,17 +421,26 @@ const VendorForm: React.FC = () => {
                 <input
                   placeholder={label}
                   className="peer h-10 w-full border-b-2 text-gray-700 bg-transparent placeholder-transparent focus:outline-none focus:border-[${accentColor}]"
-                  style={{ borderColor: inputBorderColor, color: lightTextColor, paddingLeft: "1rem", paddingRight:"1rem" }}
+                  style={{
+                    borderColor: inputBorderColor,
+                    color: lightTextColor,
+                    paddingLeft: "1rem",
+                    paddingRight: "1rem",
+                  }}
                   required={required}
                   id={name}
                   name={name}
                   type={type}
-                  value={typeof formData[name as keyof FormData] === 'string' ? formData[name as keyof FormData] as string : ""}
+                  value={
+                    typeof formData[name as keyof FormData] === "string"
+                      ? (formData[name as keyof FormData] as string)
+                      : ""
+                  }
                   onChange={handleChange}
                 />
                 <label
                   className="absolute left-0 -top-3.5 text-gray-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-3.5 peer-focus:text-[${accentColor}]"
-                  style={{color:subtleTextColor, paddingLeft: "1rem"}}
+                  style={{ color: subtleTextColor, paddingLeft: "1rem" }}
                   htmlFor={name}
                 >
                   {label}
@@ -386,16 +458,21 @@ const VendorForm: React.FC = () => {
                   id="country"
                   name="country"
                   value={formData.country}
-                  onChange={handleChange}
+                  onChange={handleCountryChange}
                   className="peer h-10 w-full border-b-2  text-gray-700 bg-transparent placeholder-transparent focus:outline-none focus:border-[${accentColor}]"
-                  style={{ borderColor: inputBorderColor, color: lightTextColor, paddingLeft: "1rem", paddingRight:"1rem" }}
+                  style={{
+                    borderColor: inputBorderColor,
+                    color: lightTextColor,
+                    paddingLeft: "1rem",
+                    paddingRight: "1rem",
+                  }}
                   required
                 >
                   <option value="" disabled>
                     Please Select
                   </option>
                   {countries.map((country) => (
-                    <option key={country.name} value={country.name}>
+                    <option key={country.isoCode} value={country.isoCode}>
                       {country.name}
                     </option>
                   ))}
@@ -403,7 +480,7 @@ const VendorForm: React.FC = () => {
                 <label
                   htmlFor="country"
                   className="absolute left-0 -top-3.5 text-gray-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-3.5 peer-focus:text-[${accentColor}]"
-                  style={{color:subtleTextColor, paddingLeft: "1rem"}}
+                  style={{ color: subtleTextColor, paddingLeft: "1rem" }}
                 >
                   Country
                 </label>
@@ -419,22 +496,28 @@ const VendorForm: React.FC = () => {
                   value={formData.state}
                   onChange={handleChange}
                   className="peer h-10 w-full border-b-2 text-gray-700 bg-transparent placeholder-transparent focus:outline-none focus:border-[${accentColor}]"
-                  style={{ borderColor: inputBorderColor, color: lightTextColor, paddingLeft: "1rem", paddingRight:"1rem" }}
+                  style={{
+                    borderColor: inputBorderColor,
+                    color: lightTextColor,
+                    paddingLeft: "1rem",
+                    paddingRight: "1rem",
+                  }}
                   required
+                  disabled={states.length === 0}
                 >
                   <option value="" disabled>
                     Please Select
                   </option>
                   {states.map((state) => (
-                    <option key={state} value={state}>
-                      {state}
+                    <option key={state.isoCode} value={state.isoCode}>
+                      {state.name}
                     </option>
                   ))}
                 </select>
                 <label
                   htmlFor="state"
                   className="absolute left-0 -top-3.5 text-gray-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-3.5 peer-focus:text-[${accentColor}]"
-                  style={{color:subtleTextColor, paddingLeft: "1rem"}}
+                  style={{ color: subtleTextColor, paddingLeft: "1rem" }}
                 >
                   State
                 </label>
@@ -447,12 +530,10 @@ const VendorForm: React.FC = () => {
         </div>
 
         {/* Topics and Technologies */}
-        <div
-          className="bg-white rounded-md shadow-sm p-6"
-        >
+        <div className="bg-white rounded-md shadow-sm p-6">
           <h2
             className="text-xl font-semibold border-b pb-2 mb-4"
-            style={{ borderColor: darkNightAmbrosia, color:lightTextColor }}
+            style={{ borderColor: darkNightAmbrosia, color: lightTextColor }}
           >
             Topics and Technologies
           </h2>
@@ -460,7 +541,12 @@ const VendorForm: React.FC = () => {
             <textarea
               placeholder="Please specify the topics and technologies your company supports..."
               className="peer h-20 w-full border-b-2 text-gray-700 bg-transparent placeholder-transparent focus:outline-none focus:border-[${accentColor}]"
-              style={{ borderColor: inputBorderColor, color: lightTextColor, paddingLeft: "1rem", paddingRight:"1rem" }}
+              style={{
+                borderColor: inputBorderColor,
+                color: lightTextColor,
+                paddingLeft: "1rem",
+                paddingRight: "1rem",
+              }}
               id="topics"
               name="topics"
               value={formData.topics}
@@ -470,7 +556,7 @@ const VendorForm: React.FC = () => {
             <label
               htmlFor="topics"
               className="absolute left-0 -top-3.5 text-gray-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-3.5 peer-focus:text-[${accentColor}]"
-              style={{color:subtleTextColor, paddingLeft: "1rem"}}
+              style={{ color: subtleTextColor, paddingLeft: "1rem" }}
             >
               Topics and Technologies
             </label>
@@ -481,12 +567,10 @@ const VendorForm: React.FC = () => {
         </div>
 
         {/* Independent Instructor */}
-        <div
-          className="bg-white rounded-md shadow-sm p-6"
-        >
+        <div className="bg-white rounded-md shadow-sm p-6">
           <h2
             className="text-xl font-semibold border-b pb-2 mb-4"
-            style={{ borderColor: darkNightAmbrosia, color:lightTextColor }}
+            style={{ borderColor: darkNightAmbrosia, color: lightTextColor }}
           >
             Independent Instructor
           </h2>
@@ -497,7 +581,12 @@ const VendorForm: React.FC = () => {
               value={formData.independentInstructor}
               onChange={handleChange}
               className="peer h-10 w-full border-b-2 text-gray-700 bg-transparent placeholder-transparent focus:outline-none focus:border-[${accentColor}]"
-              style={{ borderColor: inputBorderColor, color: lightTextColor, paddingLeft: "1rem", paddingRight:"1rem" }}
+              style={{
+                borderColor: inputBorderColor,
+                color: lightTextColor,
+                paddingLeft: "1rem",
+                paddingRight: "1rem",
+              }}
               required
             >
               <option value="" disabled>
@@ -509,7 +598,7 @@ const VendorForm: React.FC = () => {
             <label
               htmlFor="independentInstructor"
               className="absolute left-0 -top-3.5 text-gray-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-3.5 peer-focus:text-[${accentColor}]"
-              style={{color:subtleTextColor, paddingLeft: "1rem"}}
+              style={{ color: subtleTextColor, paddingLeft: "1rem" }}
             >
               Independent Instructor
             </label>
@@ -522,12 +611,10 @@ const VendorForm: React.FC = () => {
         </div>
 
         {/* LearnQuest Reference */}
-        <div
-          className="bg-white rounded-md shadow-sm p-6"
-        >
+        <div className="bg-white rounded-md shadow-sm p-6">
           <h2
             className="text-xl font-semibold border-b pb-2 mb-4"
-            style={{ borderColor: darkNightAmbrosia, color:lightTextColor }}
+            style={{ borderColor: darkNightAmbrosia, color: lightTextColor }}
           >
             LearnQuest Reference
           </h2>
@@ -535,7 +622,12 @@ const VendorForm: React.FC = () => {
             <input
               placeholder="Contact in LearnQuest"
               className="peer h-10 w-full border-b-2 text-gray-700 bg-transparent placeholder-transparent focus:outline-none focus:border-[${accentColor}]"
-              style={{ borderColor: inputBorderColor, color: lightTextColor, paddingLeft: "1rem", paddingRight:"1rem" }}
+              style={{
+                borderColor: inputBorderColor,
+                color: lightTextColor,
+                paddingLeft: "1rem",
+                paddingRight: "1rem",
+              }}
               id="learnQuestReference"
               name="learnQuestReference"
               type="text"
@@ -545,7 +637,7 @@ const VendorForm: React.FC = () => {
             <label
               htmlFor="learnQuestReference"
               className="absolute left-0 -top-3.5 text-gray-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-3.5 peer-focus:text-[${accentColor}]"
-              style={{color:subtleTextColor, paddingLeft: "1rem"}}
+              style={{ color: subtleTextColor, paddingLeft: "1rem" }}
             >
               LearnQuest Reference
             </label>
@@ -553,12 +645,10 @@ const VendorForm: React.FC = () => {
         </div>
 
         {/* Principals and Managers Contact Information */}
-        <div
-          className="bg-white rounded-md shadow-sm p-6"
-        >
+        <div className="bg-white rounded-md shadow-sm p-6">
           <h2
             className="text-xl font-semibold border-b pb-2 mb-4"
-            style={{ borderColor: darkNightAmbrosia, color:lightTextColor }}
+            style={{ borderColor: darkNightAmbrosia, color: lightTextColor }}
           >
             Principals and Managers Contact Information
           </h2>
@@ -599,13 +689,18 @@ const VendorForm: React.FC = () => {
                 <input
                   placeholder={label}
                   className="peer h-10 w-full border-b-2 text-gray-700 bg-transparent placeholder-transparent focus:outline-none focus:border-[${accentColor}]"
-                  style={{ borderColor: inputBorderColor, color: lightTextColor, paddingLeft: "1rem", paddingRight:"1rem" }}
+                  style={{
+                    borderColor: inputBorderColor,
+                    color: lightTextColor,
+                    paddingLeft: "1rem",
+                    paddingRight: "1rem",
+                  }}
                   required={required}
                   id={`principals.${name}`}
                   name={`principals.${name}`}
                   type={type}
                   value={formData.principals[name as keyof ContactInfo] || ""}
-                  onChange={(e) =>
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
                     handleNestedChange(
                       "principals",
                       name as keyof ContactInfo,
@@ -616,7 +711,7 @@ const VendorForm: React.FC = () => {
                 <label
                   htmlFor={`principals.${name}`}
                   className="absolute left-0 -top-3.5 text-gray-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-3.5 peer-focus:text-[${accentColor}]"
-                  style={{color:subtleTextColor, paddingLeft: "1rem"}}
+                  style={{ color: subtleTextColor, paddingLeft: "1rem" }}
                 >
                   {label}
                 </label>
@@ -631,12 +726,10 @@ const VendorForm: React.FC = () => {
         </div>
 
         {/* Primary Scheduling/Availability Contact Information */}
-        <div
-          className="bg-white rounded-md shadow-sm p-6"
-        >
+        <div className="bg-white rounded-md shadow-sm p-6">
           <h2
             className="text-xl font-semibold border-b pb-2 mb-4"
-            style={{ borderColor: darkNightAmbrosia, color:lightTextColor }}
+            style={{ borderColor: darkNightAmbrosia, color: lightTextColor }}
           >
             Primary Scheduling Contact
           </h2>
@@ -651,7 +744,7 @@ const VendorForm: React.FC = () => {
             <label
               htmlFor="sameAsPrincipals"
               className="ml-2 text-sm"
-              style={{color:lightTextColor}}
+              style={{ color: lightTextColor }}
             >
               Same as Principals and Managers above
             </label>
@@ -699,13 +792,21 @@ const VendorForm: React.FC = () => {
                   <input
                     placeholder={label}
                     className="peer h-10 w-full border-b-2 text-gray-700 bg-transparent placeholder-transparent focus:outline-none focus:border-[${accentColor}]"
-                    style={{ borderColor: inputBorderColor, color: lightTextColor, paddingLeft: "1rem", paddingRight:"1rem" }}
+                    style={{
+                      borderColor: inputBorderColor,
+                      color: lightTextColor,
+                      paddingLeft: "1rem",
+                      paddingRight: "1rem",
+                    }}
                     required={required}
                     id={`schedulingContact.${name}`}
                     name={`schedulingContact.${name}`}
                     type={type}
-                    value={formData.schedulingContact[name as keyof ContactInfo] || ""}
-                    onChange={(e) =>
+                    value={
+                      formData.schedulingContact[name as keyof ContactInfo] ||
+                      ""
+                    }
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
                       handleNestedChange(
                         "schedulingContact",
                         name as keyof ContactInfo,
@@ -716,7 +817,7 @@ const VendorForm: React.FC = () => {
                   <label
                     htmlFor={`schedulingContact.${name}`}
                     className="absolute left-0 -top-3.5 text-gray-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-3.5 peer-focus:text-[${accentColor}]"
-                    style={{color:subtleTextColor, paddingLeft: "1rem"}}
+                    style={{ color: subtleTextColor, paddingLeft: "1rem" }}
                   >
                     {label}
                   </label>
@@ -732,12 +833,10 @@ const VendorForm: React.FC = () => {
         </div>
 
         {/* Primary Finance/Accounting Contact Information */}
-        <div
-          className="bg-white rounded-md shadow-sm p-6"
-        >
+        <div className="bg-white rounded-md shadow-sm p-6">
           <h2
             className="text-xl font-semibold border-b pb-2 mb-4"
-            style={{ borderColor: darkNightAmbrosia, color:lightTextColor }}
+            style={{ borderColor: darkNightAmbrosia, color: lightTextColor }}
           >
             Primary Finance Contact
           </h2>
@@ -783,13 +882,20 @@ const VendorForm: React.FC = () => {
                 <input
                   placeholder={label}
                   className="peer h-10 w-full border-b-2 text-gray-700 bg-transparent placeholder-transparent focus:outline-none focus:border-[${accentColor}]"
-                  style={{ borderColor: inputBorderColor, color: lightTextColor, paddingLeft: "1rem", paddingRight:"1rem" }}
+                  style={{
+                    borderColor: inputBorderColor,
+                    color: lightTextColor,
+                    paddingLeft: "1rem",
+                    paddingRight: "1rem",
+                  }}
                   required={required}
                   id={`financeContact.${name}`}
                   name={`financeContact.${name}`}
                   type={type}
-                  value={formData.financeContact[name as keyof ContactInfo] || ""}
-                  onChange={(e) =>
+                  value={
+                    formData.financeContact[name as keyof ContactInfo] || ""
+                  }
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
                     handleNestedChange(
                       "financeContact",
                       name as keyof ContactInfo,
@@ -800,7 +906,7 @@ const VendorForm: React.FC = () => {
                 <label
                   htmlFor={`financeContact.${name}`}
                   className="absolute left-0 -top-3.5 text-gray-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-3.5 peer-focus:text-[${accentColor}]"
-                  style={{color:subtleTextColor, paddingLeft: "1rem"}}
+                  style={{ color: subtleTextColor, paddingLeft: "1rem" }}
                 >
                   {label}
                 </label>
@@ -815,12 +921,10 @@ const VendorForm: React.FC = () => {
         </div>
 
         {/* Services Section */}
-        <div
-          className="bg-white rounded-md shadow-sm p-6"
-        >
+        <div className="bg-white rounded-md shadow-sm p-6">
           <h2
             className="text-xl font-semibold border-b pb-2 mb-4"
-            style={{ borderColor: darkNightAmbrosia, color:lightTextColor }}
+            style={{ borderColor: darkNightAmbrosia, color: lightTextColor }}
           >
             Services
           </h2>
@@ -838,13 +942,99 @@ const VendorForm: React.FC = () => {
                 <label
                   htmlFor={service}
                   className="ml-2 text-gray-700"
-                  style={{color:lightTextColor}}
+                  style={{ color: lightTextColor }}
                 >
                   {service}
                 </label>
               </div>
             ))}
           </div>
+          {/* "Other" service detail text input */}
+          {formData.services.includes("Other") && (
+            <div className="relative mb-4">
+              <input
+                placeholder="Please specify the other service"
+                className="peer h-10 w-full border-b-2 text-gray-700 bg-transparent placeholder-transparent focus:outline-none focus:border-[${accentColor}]"
+                style={{
+                  borderColor: inputBorderColor,
+                  color: lightTextColor,
+                  paddingLeft: "1rem",
+                  paddingRight: "1rem",
+                }}
+                id="otherServiceDetail"
+                name="otherServiceDetail"
+                type="text"
+                value={formData.otherServiceDetail}
+                onChange={handleChange}
+              />
+              <label
+                htmlFor="otherServiceDetail"
+                className="absolute left-0 -top-3.5 text-gray-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-3.5 peer-focus:text-[${accentColor}]"
+                style={{ color: subtleTextColor, paddingLeft: "1rem" }}
+              >
+                Other Service Detail
+              </label>
+            </div>
+          )}
+        </div>
+
+        {/* CAPTCHA Section */}
+        <div className="bg-white rounded-md shadow-sm p-6">
+          <h2
+            className="text-xl font-semibold border-b pb-2 mb-4"
+            style={{ borderColor: darkNightAmbrosia, color: lightTextColor }}
+          >
+            Human Verification
+          </h2>
+          <div className="mb-4">
+            <label
+              htmlFor="captcha"
+              className="block text-gray-700 text-sm font-bold mb-2"
+            >
+              Enter the following text:
+            </label>
+            <div
+              className="text-2xl font-bold text-gray-800 select-none" // select-none to prevent selection
+              id="captcha"
+            >
+              {captchaText}
+            </div>
+          </div>
+          <div className="relative mb-4">
+            <input
+              placeholder="Enter CAPTCHA"
+              className="peer h-10 w-full border-b-2 text-gray-700 bg-transparent placeholder-transparent focus:outline-none focus:border-[${accentColor}]"
+              style={{
+                borderColor: inputBorderColor,
+                color: lightTextColor,
+                paddingLeft: "1rem",
+                paddingRight: "1rem",
+              }}
+              id="captchaInput"
+              name="captchaInput"
+              type="text"
+              value={formData.captchaInput}
+              onChange={handleChange}
+              required
+            />
+            <label
+              htmlFor="captchaInput"
+              className="absolute left-0 -top-3.5 text-gray-500 text-sm transition-all peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-3.5 peer-focus:text-[${accentColor}]"
+              style={{ color: subtleTextColor, paddingLeft: "1rem" }}
+            >
+              CAPTCHA
+            </label>
+            {errors.captchaInput && (
+              <p className="text-sm text-red-500 mt-1">{errors.captchaInput}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded"
+            onClick={() => setCaptchaText(generateCaptcha())}
+          >
+            Refresh CAPTCHA
+          </button>
         </div>
 
         {/* Submit Button */}

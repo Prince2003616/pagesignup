@@ -1,6 +1,5 @@
-// app/signupform/page.tsx
-import SignupForm from '@/app/signupform/signupform'; // Adjust path as needed
+import Form from './form';
 
 export default function SignupPage() {
-  return <SignupForm />;
+  return <Form />;
 }
